@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroPulse | NASA Space Apps Challenge 2026 - Final International Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for Dynamic Trend Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Three.js for 3D ISS EVA Separation Simulation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Font Awesome for Space & Medical Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        space: { 950: '#040711', 900: '#090e1a', 800: '#111827', 700: '#1e293b' },
+                        hud: { cyan: '#06b6d4', blue: '#3b82f6', emerald: '#10b981', amber: '#f59e0b', rose: '#f43f5e' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #040711;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(6, 182, 212, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%),
+                linear-gradient(rgba(14, 165, 233, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(14, 165, 233, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .hud-panel {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(6, 182, 212, 0.05);
+            transition: all 0.3s ease;
+        }
+        .hud-panel:hover { border-color: rgba(56, 189, 248, 0.45); }
+        .hologram-container { position: relative; overflow: hidden; }
+        .scanline {
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.8), transparent);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.9);
+            animation: scan 4s linear infinite; pointer-events: none; z-index: 10;
+        }
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; }
+        }
+        .hotspot-pulse-green { animation: pulseGreen 2s infinite; }
+        .hotspot-pulse-yellow { animation: pulseYellow 1.5s infinite; }
+        .hotspot-pulse-red { animation: pulseRed 1s infinite; }
+        @keyframes pulseGreen { 0% { r: 8; opacity: 0.9; } 70% { r: 18; opacity: 0; } 100% { r: 8; opacity: 0; } }
+        @keyframes pulseYellow { 0% { r: 9; opacity: 0.95; } 70% { r: 22; opacity: 0; } 100% { r: 9; opacity: 0; } }
+        @keyframes pulseRed { 0% { r: 10; opacity: 1; } 70% { r: 26; opacity: 0; } 100% { r: 10; opacity: 0; } }
+        input[type="range"] {
+            -webkit-appearance: none; background: rgba(30, 41, 59, 0.9); height: 6px; border-radius: 999px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #06b6d4; cursor: pointer;
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.8); transition: transform 0.15s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090e1a; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+
+    <!-- TOP HUD HEADER & MISSION CONTROLS -->
+    <header class="border-b border-cyan-500/20 bg-space-900/90 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <!-- Brand & Team Info -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-satellite text-white text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl font-extrabold tracking-wide text-white">Astro<span class="text-cyan-400">Pulse</span></h1>
+                        <span id="txt-badge" class="text-[10px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full">NASA Space Apps 2026 Finalist</span>
+                    </div>
+                    <p class="text-xs text-slate-400"><span id="txt-astronaut">Astronaut</span>: <span class="text-cyan-300 font-bold">Marwa Ahmed</span> | <span id="txt-challenge-name">Create Health Monitoring Software for Astronauts</span></p>
+                </div>
+            </div>
+
+            <!-- Mission Environment Switcher -->
+            <div class="flex flex-wrap items-center gap-1.5 bg-space-950/80 p-1.5 rounded-xl border border-slate-800">
+                <span class="text-xs text-slate-400 px-2 hidden sm:inline"><i class="fa-solid fa-satellite-dish text-cyan-400 ml-1"></i><span id="txt-env-label">Environment</span>:</span>
+                <button onclick="setEnvironment('iss')" id="env-iss" class="env-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                    <i class="fa-solid fa-shuttle-space mr-1"></i> ISS
+                </button>
+                <button onclick="setEnvironment('lunar')" id="env-lunar" class="env-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-moon mr-1"></i> Lunar
+                </button>
+                <button onclick="setEnvironment('mars')" id="env-mars" class="env-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-robot mr-1"></i> Mars
+                </button>
+                <button onclick="setEnvironment('transit')" id="env-transit" class="env-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-rocket mr-1"></i> Deep Space
+                </button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="triggerEVASeparationEmergency()" class="px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition-all flex items-center gap-1.5 shadow-md" title="ISS EVA Separation Simulation">
+                    <i class="fa-solid fa-link-slash"></i>
+                    <span id="txt-btn-eva">EVA Emergency</span>
+                </button>
+                <button onclick="triggerDemoEmergency()" class="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span id="txt-btn-sans">SANS Demo</span>
+                </button>
+                <button onclick="resetToBaseline()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all" title="Reset Baseline">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <button onclick="toggleGuideModal()" class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-book-medical"></i>
+                    <span id="txt-btn-guide">Guide & Refs</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Telemetry Strip -->
+        <div class="bg-space-950/90 border-t border-slate-800/80 px-4 py-1.5">
+            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between text-xs gap-3">
+                <div class="flex items-center gap-4">
+                    <span class="text-slate-400"><span id="txt-gravity">Gravity</span>: <strong id="env-gravity" class="text-cyan-300 font-mono">0.00g (Microgravity)</strong></span>
+                    <span class="text-slate-400"><span id="txt-radiation">Radiation</span>: <strong id="env-radiation" class="text-amber-400 font-mono">0.5 mSv/day (LEO Protected)</strong></span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-slate-400"><span id="txt-comm">Comms Delay</span>: <strong id="env-delay" class="text-emerald-400 font-mono">Instant (0.5s)</strong></span>
+                    <span id="autonomous-badge" class="hidden px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold text-[11px] animate-pulse">
+                        <i class="fa-solid fa-shield-halved ml-1"></i> <span id="txt-autonomous">Autonomous Medical Mode Active</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- GLOBAL ALERT BANNER -->
+    <div id="global-alert-banner" class="hidden max-w-7xl mx-auto w-full px-4 pt-4">
+        <div id="alert-box" class="rounded-2xl p-3.5 border flex flex-wrap items-center justify-between gap-3 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div id="alert-icon-bg" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+                    <i id="alert-icon" class="fa-solid fa-triangle-exclamation text-lg"></i>
+                </div>
+                <div>
+                    <h3 id="alert-title" class="font-bold text-sm">Critical Health Warning</h3>
+                    <p id="alert-message" class="text-xs opacity-90">Physiological telemetry deviation detected from baseline.</p>
+                </div>
+            </div>
+            <button onclick="focusHighestRiskPart()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-all">
+                <span id="txt-view-protocol">View Protocol</span> <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD GRID -->
+    <main class="max-w-7xl mx-auto w-full px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+
+        <!-- COLUMN 1: INTERACTIVE BODY HOLOGRAM & SCIENTIFIC ANALYSIS (5 Cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-5">
+            <div class="hud-panel rounded-2xl p-5 flex flex-col items-center relative hologram-container">
+                <div class="scanline"></div>
+                <div class="w-full flex items-center justify-between mb-2">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-person-rays text-cyan-400"></i>
+                            <span id="txt-body-map">Interactive Bio-Scan Hologram</span>
+                        </h2>
+                        <p class="text-xs text-slate-400" id="txt-body-sub">Click any organ for NASA HRP scientific analysis & self-aid audio</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] bg-space-950/70 px-2.5 py-1 rounded-lg border border-slate-800">
+                        <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span id="txt-st-opt">Optimal</span></span>
+                        <span class="flex items-center gap-1 text-amber-400"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span id="txt-st-warn">Warning</span></span>
+                        <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded-full bg-rose-400"></span><span id="txt-st-crit">Critical</span></span>
+                    </div>
+                </div>
+
+                <!-- Interactive SVG Body Map -->
+                <div class="relative w-full max-w-[280px] h-[340px] my-2 flex items-center justify-center">
+                    <svg viewBox="0 0 240 360" class="w-full h-full drop-shadow-[0_0_15px_rgba(6,182,212,0.25)]">
+                        <circle cx="120" cy="180" r="110" fill="none" stroke="rgba(6,182,212,0.12)" stroke-width="1" stroke-dasharray="4 4"/>
+                        <circle cx="120" cy="180" r="80" fill="none" stroke="rgba(6,182,212,0.08)" stroke-width="1"/>
+                        <g fill="rgba(14, 165, 233, 0.12)" stroke="#06b6d4" stroke-width="1.5" stroke-linejoin="round">
+                            <path d="M120,22 C106,22 97,32 97,46 C97,60 106,70 120,70 C134,70 143,60 143,46 C143,32 134,22 120,22 Z"/>
+                            <path d="M110,70 L110,82 L75,92 C66,95 62,103 60,115 L48,185 C47,192 54,195 58,188 L74,125 L80,125 L82,205 L74,325 C73,334 86,336 89,326 L112,225 L128,225 L151,326 C154,336 167,334 166,325 L158,205 L160,125 L166,125 L182,188 C186,195 193,192 192,185 L180,115 C178,103 174,95 165,92 L130,82 L130,70 Z"/>
+                        </g>
+
+                        <!-- Hotspot 1: Head -->
+                        <g onclick="selectBodyPart('head')" class="cursor-pointer group">
+                            <circle id="pulse-head" cx="120" cy="44" r="10" fill="#10b981" class="hotspot-pulse-green"/>
+                            <circle id="dot-head" cx="120" cy="44" r="8" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                            <line x1="128" y1="44" x2="178" y2="32" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 2"/>
+                            <rect x="175" y="18" width="62" height="24" rx="6" fill="#090e1a" stroke="#38bdf8" stroke-width="1"/>
+                            <text x="206" y="34" fill="#e2e8f0" font-size="10" font-weight="bold" text-anchor="middle" id="txt-spot-head">Head/SANS</text>
+                        </g>
+
+                        <!-- Hotspot 2: Heart -->
+                        <g onclick="selectBodyPart('heart')" class="cursor-pointer group">
+                            <circle id="pulse-heart" cx="124" cy="122" r="10" fill="#10b981" class="hotspot-pulse-green"/>
+                            <circle id="dot-heart" cx="124" cy="122" r="8" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                            <line x1="116" y1="122" x2="62" y2="110" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 2"/>
+                            <rect x="2" y="96" width="62" height="24" rx="6" fill="#090e1a" stroke="#38bdf8" stroke-width="1"/>
+                            <text x="33" y="112" fill="#e2e8f0" font-size="10" font-weight="bold" text-anchor="middle" id="txt-spot-heart">Cardio</text>
+                        </g>
+
+                        <!-- Hotspot 3: Immune -->
+                        <g onclick="selectBodyPart('immune')" class="cursor-pointer group">
+                            <circle id="pulse-immune" cx="120" cy="168" r="10" fill="#10b981" class="hotspot-pulse-green"/>
+                            <circle id="dot-immune" cx="120" cy="168" r="8" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                            <line x1="128" y1="168" x2="178" y2="162" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 2"/>
+                            <rect x="175" y="148" width="62" height="24" rx="6" fill="#090e1a" stroke="#38bdf8" stroke-width="1"/>
+                            <text x="206" y="164" fill="#e2e8f0" font-size="10" font-weight="bold" text-anchor="middle" id="txt-spot-immune">Immune/Met</text>
+                        </g>
+
+                        <!-- Hotspot 4: Bones -->
+                        <g onclick="selectBodyPart('bones')" class="cursor-pointer group">
+                            <circle id="pulse-bones" cx="85" cy="255" r="10" fill="#10b981" class="hotspot-pulse-green"/>
+                            <circle id="dot-bones" cx="85" cy="255" r="8" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                            <line x1="77" y1="255" x2="62" y2="255" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 2"/>
+                            <rect x="2" y="241" width="62" height="24" rx="6" fill="#090e1a" stroke="#38bdf8" stroke-width="1"/>
+                            <text x="33" y="257" fill="#e2e8f0" font-size="10" font-weight="bold" text-anchor="middle" id="txt-spot-bones">Bones/Musc</text>
+                        </g>
+
+                        <!-- Hotspot 5: Sensor -->
+                        <g onclick="selectBodyPart('sensor')" class="cursor-pointer group">
+                            <g transform="translate(174, 134) rotate(14)">
+                                <rect x="-8" y="-12" width="16" height="24" rx="4" fill="#090e1a" stroke="#06b6d4" stroke-width="1.5"/>
+                                <rect x="-5" y="-8" width="10" height="16" rx="2" fill="rgba(6, 182, 212, 0.25)"/>
+                            </g>
+                            <circle id="pulse-sensor" cx="174" cy="134" r="9" fill="#06b6d4" class="hotspot-pulse-green"/>
+                            <circle id="dot-sensor" cx="174" cy="134" r="4" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
+                            <line x1="182" y1="130" x2="188" y2="108" stroke="#06b6d4" stroke-width="1" stroke-dasharray="2 2"/>
+                            <rect x="160" y="84" width="78" height="24" rx="6" fill="#090e1a" stroke="#06b6d4" stroke-width="1.2"/>
+                            <text x="199" y="100" fill="#38bdf8" font-size="9" font-weight="bold" text-anchor="middle" id="txt-spot-patch">AstroPatch</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Quick Selectors -->
+                <div class="grid grid-cols-6 gap-1 w-full mt-1">
+                    <button onclick="selectBodyPart('head')" id="pill-head" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-bold border border-cyan-500/50 bg-cyan-500/20 text-white transition-all">Head</button>
+                    <button onclick="selectBodyPart('heart')" id="pill-heart" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-800 bg-space-950/60 text-slate-400 hover:text-white transition-all">Cardio</button>
+                    <button onclick="selectBodyPart('immune')" id="pill-immune" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-800 bg-space-950/60 text-slate-400 hover:text-white transition-all">Immune</button>
+                    <button onclick="selectBodyPart('bones')" id="pill-bones" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-800 bg-space-950/60 text-slate-400 hover:text-white transition-all">Bones</button>
+                    <button onclick="selectBodyPart('sensor')" id="pill-sensor" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-cyan-500/30 bg-space-950/60 text-cyan-300 hover:text-white transition-all">Patch</button>
+                    <button onclick="selectBodyPart('eva')" id="pill-eva" class="part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-rose-500/30 bg-space-950/60 text-rose-300 hover:text-white transition-all">EVA</button>
+                </div>
+            </div>
+
+            <!-- Scientific Analysis & Audio First-Aid Card -->
+            <div id="organ-detail-card" class="hud-panel rounded-2xl p-5 flex-grow flex flex-col justify-between border-l-4 border-l-emerald-500">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2.5">
+                            <span id="detail-icon" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-base">
+                                <i class="fa-solid fa-brain"></i>
+                            </span>
+                            <div>
+                                <h3 id="detail-title" class="font-bold text-white text-base">Nervous & Eyes (SANS Syndrome)</h3>
+                                <span id="detail-hazard" class="text-[11px] text-cyan-400 font-semibold">NASA Risk: Gravity Fields & Confinement</span>
+                            </div>
+                        </div>
+                        <span id="detail-status-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Optimal Status
+                        </span>
+                    </div>
+
+                    <div class="space-y-3 text-xs leading-relaxed">
+                        <div class="bg-space-950/70 p-3 rounded-xl border border-slate-800/80">
+                            <span class="text-cyan-300 font-bold block mb-1"><i class="fa-solid fa-microscope ml-1"></i> <span id="txt-physio">Space Physiology</span>:</span>
+                            <p id="detail-science" class="text-slate-300">Per NASA HRP studies, microgravity fluid shifts toward the head, elevating intracranial pressure and expanding optic nerve sheath diameter (ONSD > 5.0 mm).</p>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-space-950/50 px-3 py-2 rounded-xl border border-slate-800/60">
+                            <span class="text-slate-400" id="txt-baseline-comp">Baseline Comparison</span>:
+                            <span id="detail-baseline" class="font-mono font-bold text-emerald-400">Normal (ONSD: 4.6 mm)</span>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-cyan-950/30 px-3 py-1.5 rounded-xl border border-cyan-500/20">
+                            <span class="text-slate-400 text-[11px]"><i class="fa-solid fa-book-open text-cyan-400 ml-1"></i><span id="txt-ref">NASA Reference</span>:</span>
+                            <span id="detail-ref-link" class="font-mono text-[10px] text-cyan-300 font-semibold">NASA HRP SANS Evidence Report</span>
+                        </div>
+
+                        <!-- Audio First-Aid Generator -->
+                        <div id="detail-protocol-box" class="bg-emerald-950/30 p-3 rounded-xl border border-emerald-500/30">
+                            <span id="detail-protocol-title" class="text-emerald-300 font-bold block mb-1"><i class="fa-solid fa-kit-medical ml-1"></i> <span id="txt-rec-protocol">Recommended Protocol</span>:</span>
+                            <p id="detail-protocol" class="text-slate-200">Continue morning blue-light therapy, maintain 7.5 hours sleep, and perform weekly eye ultrasound scans.</p>
+                            
+                            <div class="mt-3 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between gap-2">
+                                <div class="text-[11px] overflow-hidden">
+                                    <strong id="audio-freq-label" class="text-cyan-300 block">Self-Aid Frequency (432 Hz):</strong>
+                                    <span id="audio-freq-desc" class="text-slate-400 truncate block">Neurological balance and stress relief</span>
+                                </div>
+                                <button onclick="toggleAudioFrequency()" id="audio-play-btn" class="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-md">
+                                    <i class="fa-solid fa-volume-high" id="audio-icon"></i>
+                                    <span id="audio-btn-text">Play Frequency</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 2: REAL-TIME TELEMETRY & SIMULATOR (4 Cols) -->
+        <section class="lg:col-span-4 flex flex-col gap-5">
+            <div class="hud-panel rounded-2xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-cyan-400"></i>
+                            <span id="txt-vitals-title">Telemetry & Live Simulation</span>
+                        </h2>
+                        <p class="text-xs text-slate-400" id="txt-vitals-sub">Adjust parameters to simulate instant system response</p>
+                    </div>
+                    <span class="text-[11px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20">LIVE INPUT</span>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-heart text-rose-400"></i> <span id="txt-hr-label">Heart Rate</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">Base: 65</span>
+                                <span id="val-hr" class="font-mono text-sm font-bold text-emerald-400">68 bpm</span>
+                            </div>
+                        </div>
+                        <input type="range" id="input-hr" min="45" max="165" value="68" oninput="updateVitals()" class="w-full">
+                    </div>
+
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-high text-cyan-400"></i> <span id="txt-bp-label">Systolic Blood Pressure</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">Base: 118</span>
+                                <span id="val-bp" class="font-mono text-sm font-bold text-emerald-400">120 mmHg</span>
+                            </div>
+                        </div>
+                        <input type="range" id="input-bp" min="85" max="175" value="120" oninput="updateVitals()" class="w-full">
+                    </div>
+
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-droplet text-amber-400"></i> <span id="txt-glu-label">Blood Glucose</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">Base: 92</span>
+                                <span id="val-glucose" class="font-mono text-sm font-bold text-emerald-400">95 mg/dL</span>
+                            </div>
+                        </div>
+                        <input type="range" id="input-glucose" min="55" max="210" value="95" oninput="updateVitals()" class="w-full">
+                    </div>
+
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bed text-indigo-400"></i> <span id="txt-sleep-label">Daily Sleep Hours</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">Goal: 7.5h</span>
+                                <span id="val-sleep" class="font-mono text-sm font-bold text-emerald-400">7.5 h</span>
+                            </div>
+                        </div>
+                        <input type="range" id="input-sleep" min="3" max="10" step="0.5" value="7.5" oninput="updateVitals()" class="w-full">
+                    </div>
+
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-eye text-cyan-400"></i> <span id="txt-onsd-label">Optic Nerve Sheath (ONSD)</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">Normal: &lt;5.0</span>
+                                <span id="val-onsd" class="font-mono text-sm font-bold text-emerald-400">4.6 mm</span>
+                            </div>
+                        </div>
+                        <input type="range" id="input-onsd" min="4.0" max="6.8" step="0.1" value="4.6" oninput="updateVitals()" class="w-full">
+                    </div>
+
+                    <div class="bg-space-950/60 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
+                        <label class="text-xs font-bold text-slate-300 shrink-0">
+                            <i class="fa-solid fa-face-smile text-amber-400 mr-1"></i><span id="txt-mood-label">Stress & Cortisol</span>:
+                        </label>
+                        <select id="input-mood" onchange="updateVitals()" class="w-full bg-space-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="optimal" id="opt-stable">Stable (Cortisol 12 µg/dL)</option>
+                            <option value="stressed" id="opt-stress">Isolated Stress (21 µg/dL)</option>
+                            <option value="critical" id="opt-panic">Acute Panic (> 28 µg/dL)</option>
+                        </select>
+                    </div>
+
+                    <!-- EVA Tether & Separation Risk -->
+                    <div class="bg-space-950/60 p-3 rounded-xl border border-cyan-500/30">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-link-slash text-rose-400"></i> <span id="txt-eva-label">EVA Tether & ISS Separation</span>
+                            </label>
+                            <span id="val-eva" class="font-mono text-xs font-bold text-emerald-400">Tethered (0.0m)</span>
+                        </div>
+                        <select id="input-eva" onchange="updateVitals()" class="w-full bg-space-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="tethered" id="opt-tethered">Dual Tethered (Safe - 0.0m)</option>
+                            <option value="slack" id="opt-slack">Tether Slack / Drifting (12.0m - Warning)</option>
+                            <option value="detached" id="opt-detached">Detached from ISS! SAFER Active (Critical)</option>
+                        </select>
+                        <button onclick="open3DSimModal()" class="mt-2 w-full py-1.5 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-cube"></i>
+                            <span id="txt-btn-3d">Open 3D ISS EVA Simulation</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trend Chart -->
+            <div class="hud-panel rounded-2xl p-5 flex-grow flex flex-col">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-cyan-400"></i>
+                            <span id="txt-trend-title">7-Day Trend Analysis</span>
+                        </h3>
+                    </div>
+                    <select id="chart-metric-select" onchange="updateChartMetric()" class="bg-space-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-cyan-300 focus:outline-none">
+                        <option value="hr" id="opt-c-hr">Heart Rate (bpm)</option>
+                        <option value="onsd" id="opt-c-onsd">Optic Nerve (mm)</option>
+                        <option value="sleep" id="opt-c-sleep">Sleep (h)</option>
+                        <option value="glucose" id="opt-c-glu">Glucose (mg/dL)</option>
+                    </select>
+                </div>
+                <div class="relative w-full h-44 flex-grow">
+                    <canvas id="vitalsChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 3: GAMIFICATION, COUNTERMEASURES & LOGS (3 Cols) -->
+        <section class="lg:col-span-3 flex flex-col gap-5">
+            <div class="hud-panel rounded-2xl p-5 bg-gradient-to-b from-slate-900/90 to-cyan-950/20">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-bold text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-award text-amber-400"></i>
+                        <span id="txt-readiness-title">Mission Readiness</span>
+                    </h2>
+                    <span class="text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        <i class="fa-solid fa-fire mr-1"></i><span id="streak-days">14</span> <span id="txt-streak-lbl">Days Streak</span>
+                    </span>
+                </div>
+
+                <div class="flex items-end justify-between mb-2">
+                    <div>
+                        <span id="readiness-score" class="text-3xl font-extrabold font-mono text-cyan-400">94%</span>
+                        <span class="text-xs text-slate-400" id="txt-bio-index">Biomarker Efficiency</span>
+                    </div>
+                    <div class="text-right">
+                        <span id="xp-points" class="text-sm font-bold font-mono text-emerald-400">+1,450 XP</span>
+                        <span class="text-[11px] text-slate-400 block" id="txt-rank">Rank: Commander</span>
+                    </div>
+                </div>
+                <div class="w-full bg-space-950 rounded-full h-2.5 border border-slate-800 overflow-hidden">
+                    <div id="readiness-bar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-2.5 rounded-full transition-all duration-500" style="width: 94%"></div>
+                </div>
+            </div>
+
+            <!-- Daily Countermeasures -->
+            <div class="hud-panel rounded-2xl p-5 flex-grow flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-emerald-400"></i>
+                            <span id="txt-counter-title">Daily Countermeasures</span>
+                        </h3>
+                        <span id="tasks-counter" class="text-xs font-mono text-slate-400">3/4</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mb-3" id="txt-counter-sub">Complete daily tasks to maintain health & earn XP:</p>
+
+                    <div class="space-y-2.5" id="routine-list">
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-space-950/70 border border-slate-800 hover:border-cyan-500/40 cursor-pointer transition-all">
+                            <input type="checkbox" checked onchange="toggleTask(this, 100)" class="mt-1 accent-cyan-500 w-4 h-4 rounded">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-200 block" id="txt-task1-t">ARED Resistance Exercise</span>
+                                <span class="text-[11px] text-slate-400" id="txt-task1-d">45 min bone & muscle mass preservation</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-space-950/70 border border-slate-800 hover:border-cyan-500/40 cursor-pointer transition-all">
+                            <input type="checkbox" checked onchange="toggleTask(this, 100)" class="mt-1 accent-cyan-500 w-4 h-4 rounded">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-200 block" id="txt-task2-t">Blue-Light Circadian Therapy</span>
+                                <span class="text-[11px] text-slate-400" id="txt-task2-d">30 min morning exposure for sleep alignment</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-space-950/70 border border-slate-800 hover:border-cyan-500/40 cursor-pointer transition-all">
+                            <input type="checkbox" checked onchange="toggleTask(this, 50)" class="mt-1 accent-cyan-500 w-4 h-4 rounded">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-200 block" id="txt-task3-t">Hydration & Vitamin D3</span>
+                                <span class="text-[11px] text-slate-400" id="txt-task3-d">2.5L water intake + calcium supplementation</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-space-950/70 border border-slate-800 hover:border-cyan-500/40 cursor-pointer transition-all">
+                            <input type="checkbox" id="task-lbnp" onchange="toggleTask(this, 150)" class="mt-1 accent-cyan-500 w-4 h-4 rounded">
+                            <div class="text-xs">
+                                <span class="font-bold text-cyan-300 block" id="txt-task4-t">LBNP Negative Pressure Session</span>
+                                <span class="text-[11px] text-slate-400" id="txt-task4-d">Fluid shift countermeasure against SANS</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-800/80">
+                    <button onclick="sendTelemetryReport()" class="w-full py-2.5 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span id="txt-btn-sync">Transmit Telemetry to Flight Surgeons</span>
+                    </button>
+                    <p id="sync-status" class="text-[10px] text-center text-slate-500 mt-1.5">Last Houston Sync: 4 mins ago</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- GUIDE & REFERENCES MODAL -->
+    <div id="guide-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="hud-panel bg-space-900 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-cyan-500/40 shadow-2xl">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                        <i class="fa-solid fa-user-astronaut text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base" id="mod-title">NASA Space Apps 2026 - Official Guide & References</h3>
+                        <p class="text-xs text-slate-400" id="mod-sub">Comprehensive Astronaut Health Monitoring & Emergency Protocols</p>
+                    </div>
+                </div>
+                <button onclick="toggleGuideModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed">
+                <div class="bg-cyan-950/30 border border-cyan-500/30 p-3.5 rounded-xl">
+                    <h4 class="font-bold text-cyan-300 text-sm mb-1" id="mod-head1">About AstroPulse (NASA Space Apps Challenge 2026)</h4>
+                    <p class="text-slate-300" id="mod-desc1">Built specifically for the challenge <em>"Create Health Monitoring Software for Astronauts on Space Missions"</em>. AstroPulse empowers non-medical astronauts with real-time biometric telemetry, Solfeggio first-aid healing audio frequencies, and 3D ISS EVA separation protocols.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="bg-space-950/80 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-emerald-400 font-bold block mb-1">1. ONSD & SANS Ultrasound</span>
+                        <p class="text-slate-400">Measures optic nerve sheath diameter (&lt;5.0 mm normal) to detect microgravity intracranial fluid pressure shifts early.</p>
+                    </div>
+                    <div class="bg-space-950/80 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-amber-400 font-bold block mb-1">2. i-STAT Microfluidic Blood Analysis</span>
+                        <p class="text-slate-400">Painless finger-prick sample testing for electrolytes, blood glucose, and immune biomarkers in deep space transit.</p>
+                    </div>
+                    <div class="bg-space-950/80 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-cyan-400 font-bold block mb-1">3. NASA Human Research Program (HRP)</span>
+                        <p class="text-slate-400">Covers the 5 hazards of human spaceflight: Radiation, Isolation, Distance, Gravity fields, and Closed environments.</p>
+                    </div>
+                    <div class="bg-space-950/80 p-3.5 rounded-xl border border-rose-500/30 md:col-span-2">
+                        <span class="text-rose-400 font-bold block mb-1"><i class="fa-solid fa-user-astronaut mr-1"></i> ISS EVA Tether Separation & SAFER Protocol</span>
+                        <p class="text-slate-400">When an astronaut detaches from ISS, heart rate spikes and EMU oxygen consumption triples. AstroPulse activates SAFER thruster simulation, stabilization algorithms, and 174 Hz calming audio frequency.</p>
+                    </div>
+                </div>
+
+                <!-- References -->
+                <div class="bg-space-950/90 p-4 rounded-xl border border-slate-700/80 space-y-2">
+                    <h4 class="font-bold text-white text-xs flex items-center gap-1.5">
+                        <i class="fa-solid fa-graduation-cap text-cyan-400"></i>
+                        <span id="mod-ref-title">NASA Space Apps 2026 Challenge & Scientific References:</span>
+                    </h4>
+                    <ul class="space-y-1.5 text-[11px] text-slate-300 list-disc list-inside">
+                        <li>
+                            <strong>NASA Space Apps Challenge 2026:</strong>
+                            <a href="https://www.spaceappschallenge.org/2026/challenges/health-monitoring-software/" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline font-mono">Health Monitoring Software Challenge</a> |
+                            <a href="https://www.spaceappschallenge.org/2026/challenges/health-monitoring-software/?tab=resources" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline font-mono">Official Challenge Resources</a>
+                        </li>
+                        <li><strong>NASA Human Research Program (HRP):</strong> Evidence Book & Spaceflight Hazards Roadmap (<span class="font-mono">humanresearchroadmap.nasa.gov</span>)</li>
+                        <li><strong>TRISH & SANS Research:</strong> Translational Research Institute for Space Health Optic Nerve & Fluid Shift Studies.</li>
+                        <li><strong>NASA ISS EVA Operations:</strong> Extravehicular Activity & SAFER Emergency Flight Rules Manual.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button onclick="toggleGuideModal()" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all" id="mod-btn-close">
+                    Got it, Return to Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-box" class="fixed bottom-5 left-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-space-900 border border-cyan-500/50 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+            <span id="toast-text" class="font-semibold">Telemetry updated successfully</span>
+        </div>
+    </div>
+
+    <!-- 3D ISS EVA SEPARATION SIMULATION MODAL -->
+    <div id="sim3d-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="hud-panel bg-space-950 rounded-2xl max-w-4xl w-full flex flex-col border border-rose-500/50 shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-space-900/90">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/40">
+                        <i class="fa-solid fa-vr-cardboard text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-sm sm:text-base" id="sim-title">3D Simulation: Astronaut Detachment from ISS</h3>
+                        <p class="text-[11px] text-slate-400" id="sim-sub">Click and drag with mouse or touch to rotate camera around the orbital scene</p>
+                    </div>
+                </div>
+                <button onclick="close3DSimModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="relative w-full h-[340px] sm:h-[420px] bg-[#02040a]" id="threejs-container">
+                <div class="absolute top-3 left-3 z-10 bg-space-950/80 backdrop-blur-md border border-cyan-500/30 rounded-xl p-3 text-xs space-y-1.5 pointer-events-none">
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400" id="sim-lbl-dist">ISS Distance:</span>
+                        <span id="sim3d-dist" class="font-mono font-bold text-rose-400">28.0 m</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400" id="sim-lbl-fuel">SAFER Fuel:</span>
+                        <span id="sim3d-fuel" class="font-mono font-bold text-cyan-400">100%</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400" id="sim-lbl-o2">EMU Oxygen:</span>
+                        <span id="sim3d-o2" class="font-mono font-bold text-amber-400">74% (High Consumption)</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400" id="sim-lbl-stat">Tether Status:</span>
+                        <span id="sim3d-status" class="font-bold text-rose-400">Detached - Orbital Drift</span>
+                    </div>
+                </div>
+
+                <div id="sim3d-guide-banner" class="absolute bottom-3 left-3 right-3 z-10 bg-rose-950/85 border border-rose-500/50 rounded-xl px-3.5 py-2 text-xs text-rose-100 flex items-center justify-between gap-2">
+                    <span><i class="fa-solid fa-triangle-exclamation text-rose-400 ml-1.5"></i><strong id="sim3d-instruction">Warning: Tether severed! Click "Activate SAFER Rescue" to stabilize and return to ISS.</strong></span>
+                </div>
+            </div>
+
+            <div class="p-3.5 bg-space-900 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="activateSAFERThrusters()" id="btn-safer-thrust" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-jet-fighter-up"></i>
+                        <span id="sim-btn-activate">Activate SAFER Rescue Thrusters</span>
+                    </button>
+                    <button onclick="reset3DSimulation()" class="px-3.5 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span id="sim-btn-reset">Reset Separation Simulation</span>
+                    </button>
+                </div>
+                <button onclick="close3DSimModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all" id="sim-btn-close">
+                    Close 3D View
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT INTERNATIONAL & TECHNICAL ENGINE -->
+    <script>
+        const environments = {
+            iss: { gravity: '0.00g (Microgravity)', radiation: '0.5 mSv/day', delay: 'Instant (0.5s)', autonomous: false },
+            lunar: { gravity: '0.16g (Lunar Gravity)', radiation: '1.3 mSv/day', delay: '1.3s', autonomous: false },
+            mars: { gravity: '0.38g (Mars Gravity)', radiation: '1.8 mSv/day', delay: '14 min', autonomous: true },
+            transit: { gravity: '0.00g (Deep Space)', radiation: '2.4 mSv/day', delay: '22 min', autonomous: true }
+        };
+
+        const organData = {
+            head: {
+                title: 'Nervous & Eyes (SANS Syndrome)',
+                hazard: 'NASA Risk: Gravity Fields & Confinement',
+                icon: 'fa-brain',
+                science: 'Per NASA HRP studies, microgravity fluid shifts toward the head, elevating intracranial pressure and expanding optic nerve sheath diameter (ONSD > 5.0 mm).',
+                status: 'green',
+                baselineText: 'Normal (ONSD: 4.6 mm | Sleep: 7.5h)',
+                refLink: 'NASA HRP SANS Evidence Report & TRISH',
+                protocol: 'Continue morning blue-light therapy, maintain 7.5 hours sleep, and perform weekly ONSD ultrasound eye scans.',
+                freq: 432,
+                freqName: '432 Hz Frequency (Neurological Balance & Stress Relief)'
+            },
+            heart: {
+                title: 'Cardiovascular & Circulation',
+                hazard: 'NASA Risk: Gravity Fields & Closed Environment',
+                icon: 'fa-heart-pulse',
+                science: 'Plasma volume contracts by 10-15% during early spaceflight, with myocardial mass reduction and orthostatic hypotension risks upon re-entry.',
+                status: 'green',
+                baselineText: 'Resting HR 68 bpm | BP 120/78 mmHg',
+                refLink: 'NASA Cardiovascular Health in Spaceflight',
+                protocol: 'Complete daily aerobic cardio workouts and monitor electrolyte and blood pressure logs.',
+                freq: 528,
+                freqName: '528 Hz Frequency (Cellular Repair & Circulation)'
+            },
+            immune: {
+                title: 'Immune & Metabolic System',
+                hazard: 'NASA Risk: Space Radiation & Confinement',
+                icon: 'fa-shield-virus',
+                science: 'Cosmic radiation and elevated cortisol suppress T-cell activation and reactivate latent viruses, accompanied by mild insulin resistance.',
+                status: 'green',
+                baselineText: 'Blood Glucose 95 mg/dL | Cortisol Normal',
+                refLink: 'NASA Immune Dysregulation & i-STAT Research',
+                protocol: 'Consume antioxidant-rich rations, omega-3 supplements, and perform weekly i-STAT biomarker assays.',
+                freq: 639,
+                freqName: '639 Hz Frequency (Immune Boost & Cortisol Lowering)'
+            },
+            bones: {
+                title: 'Musculoskeletal & Bone Density',
+                hazard: 'NASA Risk: Microgravity & Partial Gravity',
+                icon: 'fa-bone',
+                science: 'Astronauts lose 1.0% to 1.5% bone mineral density monthly in microgravity, increasing urinary calcium and kidney stone risks.',
+                status: 'green',
+                baselineText: 'ARED Exercise Rate 100% (Density Stable)',
+                refLink: 'NASA Bone & Muscle Loss Countermeasures',
+                protocol: 'Complete 45 min ARED resistance exercise daily and take Vitamin D3 + calcium supplements.',
+                freq: 285,
+                freqName: '285 Hz Frequency (Bone Regeneration & Tissue Healing)'
+            },
+            sensor: {
+                title: 'AstroPatch Wearable Bio-Sensor',
+                hazard: 'Continuous Microfluidic & Optical Telemetry',
+                icon: 'fa-microchip',
+                science: 'Wearable bio-sensor inspired by TRISH to gather non-invasive biometric telemetry including PPG heart rate, SpO2, and interstitial glucose.',
+                status: 'green',
+                baselineText: 'Stable Connection (Battery 96% | Signal Optimal)',
+                refLink: 'NASA Space Apps 2026 Wearables Resource',
+                protocol: 'Replace patch every 7 days on alternate arms; ensure clean dry skin prior to application.',
+                freq: 417,
+                freqName: '417 Hz Frequency (Sensor Synchronization & Biostasis)'
+            },
+            eva: {
+                title: 'EVA & ISS Separation Emergency (SAFER Protocol)',
+                hazard: 'NASA Emergency Protocol: Tether Detachment & O2 Depletion',
+                icon: 'fa-link-slash',
+                science: 'During spacewalks, tether detachment triggers panic stress responses exceeding 145 bpm and triples EMU spacesuit oxygen consumption.',
+                status: 'green',
+                baselineText: 'Dual Tethered (Suit Pressure 4.3 psi)',
+                refLink: 'NASA ISS EVA Flight Rules & SAFER Manual',
+                protocol: 'Double-check safety carabiners before movement and monitor EMU oxygen levels continuously.',
+                freq: 174,
+                freqName: '174 Hz Emergency Frequency (Panic Suppression & Acute Pain Relief)'
+            }
+        };
+
+        let currentSelectedPart = 'head';
+        let xpTotal = 1450;
+        let vitalsChartInstance = null;
+        let audioCtx = null, oscillator = null, gainNode = null, isAudioPlaying = false;
+
+        const historicalData = {
+            hr: { label: 'Heart Rate (bpm)', baseline: 65, days: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Today'], values: [64, 66, 65, 67, 66, 69, 68], color: '#06b6d4' },
+            onsd: { label: 'Optic Nerve Sheath (mm)', baseline: 4.6, days: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Today'], values: [4.5, 4.6, 4.6, 4.7, 4.6, 4.7, 4.6], color: '#f43f5e' },
+            sleep: { label: 'Daily Sleep (h)', baseline: 7.5, days: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Today'], values: [7.5, 7.0, 7.5, 8.0, 7.0, 7.5, 7.5], color: '#818cf8' },
+            glucose: { label: 'Blood Glucose (mg/dL)', baseline: 92, days: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Today'], values: [90, 94, 92, 96, 91, 93, 95], color: '#f59e0b' }
+        };
+
+        window.onload = function() {
+            initChart();
+            updateVitals();
+            selectBodyPart('head');
+        };
+
+        function setEnvironment(envKey) {
+            const data = environments[envKey];
+            document.querySelectorAll('.env-btn').forEach(btn => {
+                btn.className = 'env-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all';
+            });
+            const activeBtn = document.getElementById(`env-${envKey}`);
+            if (activeBtn) activeBtn.className = 'env-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+
+            document.getElementById('env-gravity').textContent = data.gravity;
+            document.getElementById('env-radiation').textContent = data.radiation;
+            document.getElementById('env-delay').textContent = data.delay;
+
+            const autoBadge = document.getElementById('autonomous-badge');
+            if (data.autonomous) {
+                autoBadge.classList.remove('hidden');
+                showToast('Autonomous Medical Mode activated due to comms delay', 'warning');
+            } else {
+                autoBadge.classList.add('hidden');
+                showToast('Mission environment switched successfully', 'info');
+            }
+        }
+
+        function updateVitals() {
+            const hr = parseInt(document.getElementById('input-hr').value);
+            const bp = parseInt(document.getElementById('input-bp').value);
+            const glucose = parseInt(document.getElementById('input-glucose').value);
+            const sleep = parseFloat(document.getElementById('input-sleep').value);
+            const onsd = parseFloat(document.getElementById('input-onsd').value);
+            const mood = document.getElementById('input-mood').value;
+            const eva = document.getElementById('input-eva').value;
+
+            document.getElementById('val-hr').textContent = `${hr} bpm`;
+            document.getElementById('val-bp').textContent = `${bp} mmHg`;
+            document.getElementById('val-glucose').textContent = `${glucose} mg/dL`;
+            document.getElementById('val-sleep').textContent = `${sleep} h`;
+            document.getElementById('val-onsd').textContent = `${onsd.toFixed(1)} mm`;
+
+            setMetricColor('val-hr', hr > 115 || hr < 50 ? 'red' : (hr > 95 || hr < 55 ? 'yellow' : 'green'));
+            setMetricColor('val-bp', bp >= 145 || bp < 90 ? 'red' : (bp >= 130 ? 'yellow' : 'green'));
+            setMetricColor('val-glucose', glucose >= 160 || glucose < 65 ? 'red' : (glucose >= 125 || glucose < 75 ? 'yellow' : 'green'));
+            setMetricColor('val-sleep', sleep < 5 ? 'red' : (sleep < 6.5 ? 'yellow' : 'green'));
+            setMetricColor('val-onsd', onsd >= 5.8 ? 'red' : (onsd >= 5.1 ? 'yellow' : 'green'));
+
+            if (onsd >= 5.8 || sleep < 5 || mood === 'critical') {
+                organData.head.status = 'red';
+                organData.head.baselineText = `Critical SANS! (ONSD: ${onsd.toFixed(1)} mm | Sleep: ${sleep}h)`;
+                organData.head.protocol = 'Immediate action: Wear LBNP negative pressure suit for 30 min & play emergency frequency.';
+            } else if (onsd >= 5.1 || sleep < 6.5 || mood === 'stressed') {
+                organData.head.status = 'yellow';
+                organData.head.baselineText = `Early SANS Alert (ONSD: ${onsd.toFixed(1)} mm | Sleep: ${sleep}h)`;
+                organData.head.protocol = 'Preventative: Daily LBNP session, circadian warm lighting, and 432 Hz audio aid.';
+            } else {
+                organData.head.status = 'green';
+                organData.head.baselineText = `Normal Baseline (ONSD: ${onsd.toFixed(1)} mm | Sleep: ${sleep}h)`;
+                organData.head.protocol = 'Continue morning blue-light therapy and maintain 7.5 hours sleep.';
+            }
+
+            if (hr > 115 || hr < 50 || bp >= 145 || bp < 90) {
+                organData.heart.status = 'red';
+                organData.heart.baselineText = `Cardio Risk! (HR: ${hr} bpm | BP: ${bp} mmHg)`;
+                organData.heart.protocol = 'Emergency: Cease exertion immediately, regulate breathing, and play 528 Hz aid.';
+            } else if (hr > 95 || bp >= 130) {
+                organData.heart.status = 'yellow';
+                organData.heart.baselineText = `Elevated Baseline (HR: ${hr} | BP: ${bp})`;
+                organData.heart.protocol = 'Hydrate with 500ml electrolyte water and rest for 20 minutes.';
+            } else {
+                organData.heart.status = 'green';
+                organData.heart.baselineText = `Resting HR ${hr} bpm | BP ${bp} mmHg (Optimal)`;
+                organData.heart.protocol = 'Commit to daily aerobic cardio and monitor blood pressure logs.';
+            }
+
+            if (glucose >= 160 || glucose < 65) {
+                organData.immune.status = 'red';
+                organData.immune.baselineText = `Metabolic Crisis! (Glucose: ${glucose} mg/dL)`;
+                organData.immune.protocol = glucose < 65 ? 'Hypoglycemia: Ingest 15g fast-acting carbs immediately.' : 'Hyperglycemia: Hydrate and check blood ketones via i-STAT.';
+            } else if (glucose >= 125 || glucose < 75 || mood === 'stressed') {
+                organData.immune.status = 'yellow';
+                organData.immune.baselineText = `Metabolic Fluctuation (Glucose: ${glucose} mg/dL)`;
+                organData.immune.protocol = 'Adjust next meal for balanced protein/fiber and play 639 Hz immune frequency.';
+            } else {
+                organData.immune.status = 'green';
+                organData.immune.baselineText = `Blood Glucose ${glucose} mg/dL (Stable)`;
+                organData.immune.protocol = 'Maintain antioxidant-rich rations and weekly i-STAT biomarker assays.';
+            }
+
+            const aredCheckbox = document.querySelector('#routine-list input[type="checkbox"]');
+            const aredChecked = aredCheckbox ? aredCheckbox.checked : true;
+            if (!aredChecked && (currentEnv === 'iss' || currentEnv === 'transit')) {
+                organData.bones.status = 'yellow';
+                organData.bones.baselineText = 'Warning: Daily ARED Resistance Exercise Incomplete';
+                organData.bones.protocol = 'Microgravity bone loss countermeasure: Complete 45 min ARED session today.';
+            } else {
+                organData.bones.status = 'green';
+                organData.bones.baselineText = 'Exercise Rate Optimal (Bone Density Protected)';
+                organData.bones.protocol = 'Complete 45 min ARED daily and take Vitamin D3 and calcium supplements.';
+            }
+
+            const evaLabel = document.getElementById('val-eva');
+            if (eva === 'detached') {
+                organData.eva.status = 'red';
+                organData.eva.baselineText = 'ISS Detached! (Distance > 25m | O2 Depleting)';
+                organData.eva.protocol = 'SAFER Emergency: 1) Activate AAH stabilization. 2) Thruster burn toward ISS. 3) Play 174 Hz.';
+                if (evaLabel) { evaLabel.textContent = 'Critical Detachment! (SAFER Active)'; evaLabel.className = 'font-mono text-xs font-bold text-rose-400 animate-pulse'; }
+            } else if (eva === 'slack') {
+                organData.eva.status = 'yellow';
+                organData.eva.baselineText = 'Tether Slack / Drifting (12.0m Distance)';
+                organData.eva.protocol = 'Immediate action: Halt movement, reel in tether spool manually, secure backup hook.';
+                if (evaLabel) { evaLabel.textContent = '12.0m Drift (Warning)'; evaLabel.className = 'font-mono text-xs font-bold text-amber-400'; }
+            } else {
+                organData.eva.status = 'green';
+                organData.eva.baselineText = 'Dual Tethered (Suit Pressure 4.3 psi)';
+                organData.eva.protocol = 'Double-check safety carabiners before movement and monitor EMU oxygen levels.';
+                if (evaLabel) { evaLabel.textContent = 'Tethered (0.0m)'; evaLabel.className = 'font-mono text-xs font-bold text-emerald-400'; }
+            }
+
+            const hasRed = [organData.head.status, organData.heart.status, organData.immune.status, organData.eva.status].includes('red');
+            const hasYellow = [organData.head.status, organData.heart.status, organData.immune.status, organData.eva.status].includes('yellow');
+            if (hasRed) { organData.sensor.status = 'red'; organData.sensor.baselineText = 'Emergency Broadcast Active (Battery 96%)'; }
+            else if (hasYellow) { organData.sensor.status = 'yellow'; organData.sensor.baselineText = 'High-Frequency Monitoring Active (Battery 96%)'; }
+            else { organData.sensor.status = 'green'; organData.sensor.baselineText = 'Stable Connection (Battery 96% | Signal Optimal)'; }
+
+            ['head', 'heart', 'immune', 'bones', 'sensor'].forEach(part => {
+                updateBodyHotspot(part, organData[part].status);
+            });
+
+            historicalData.hr.values[6] = hr;
+            historicalData.onsd.values[6] = onsd;
+            historicalData.sleep.values[6] = sleep;
+            historicalData.glucose.values[6] = glucose;
+            if (vitalsChartInstance) {
+                const metric = document.getElementById('chart-metric-select').value;
+                vitalsChartInstance.data.datasets[0].data = historicalData[metric].values;
+                vitalsChartInstance.update('none');
+            }
+
+            selectBodyPart(currentSelectedPart);
+            updateGlobalAlert();
+            updateReadinessScore();
+        }
+
+        function setMetricColor(elementId, status) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.className = 'font-mono text-sm font-bold ' + (status === 'red' ? 'text-rose-400' : status === 'yellow' ? 'text-amber-400' : 'text-emerald-400');
+        }
+
+        function updateBodyHotspot(part, status) {
+            const dot = document.getElementById(`dot-${part}`);
+            const pulse = document.getElementById(`pulse-${part}`);
+            if (!dot || !pulse) return;
+            const colorHex = status === 'red' ? '#f43f5e' : (status === 'yellow' ? '#f59e0b' : '#10b981');
+            const pulseClass = status === 'red' ? 'hotspot-pulse-red' : (status === 'yellow' ? 'hotspot-pulse-yellow' : 'hotspot-pulse-green');
+            dot.setAttribute('fill', colorHex);
+            pulse.setAttribute('fill', colorHex);
+            pulse.setAttribute('class', pulseClass);
+        }
+
+        function selectBodyPart(partKey) {
+            currentSelectedPart = partKey;
+            const info = organData[partKey];
+            if (!info) return;
+
+            if (isAudioPlaying) stopAudioFrequency();
+
+            document.querySelectorAll('.part-pill').forEach(btn => {
+                btn.className = 'part-pill py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-800 bg-space-950/60 text-slate-400 hover:text-white transition-all';
+            });
+            const activePill = document.getElementById(`pill-${partKey}`);
+            if (activePill) activePill.className = 'part-pill py-1.5 px-1 rounded-lg text-[10px] font-bold border border-cyan-500/50 bg-cyan-500/20 text-white transition-all';
+
+            document.getElementById('detail-title').textContent = info.title;
+            document.getElementById('detail-hazard').textContent = info.hazard;
+            document.getElementById('detail-science').textContent = info.science;
+            document.getElementById('detail-baseline').textContent = info.baselineText;
+            document.getElementById('detail-ref-link').textContent = info.refLink;
+            document.getElementById('detail-protocol').textContent = info.protocol;
+
+            let freqLabelText = `Self-Aid Frequency (${info.freq} Hz):`;
+            if (info.status === 'red') freqLabelText = `🚨 Surgeon Emergency Frequency (${info.freq + 111} Hz):`;
+            document.getElementById('audio-freq-label').textContent = freqLabelText;
+            document.getElementById('audio-freq-desc').textContent = info.freqName;
+
+            const card = document.getElementById('organ-detail-card');
+            const iconWrap = document.getElementById('detail-icon');
+            const badge = document.getElementById('detail-status-badge');
+            const baselineEl = document.getElementById('detail-baseline');
+            const protocolBox = document.getElementById('detail-protocol-box');
+            const protocolTitle = document.getElementById('detail-protocol-title');
+
+            if (iconWrap) iconWrap.innerHTML = `<i class="fa-solid ${info.icon}"></i>`;
+
+            if (info.status === 'red') {
+                card.style.borderLeftColor = '#f43f5e';
+                if (iconWrap) iconWrap.className = 'w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-base';
+                if (badge) { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40'; badge.textContent = 'Critical - Immediate Action'; }
+                if (baselineEl) baselineEl.className = 'font-mono font-bold text-rose-400';
+                if (protocolBox) protocolBox.className = 'bg-rose-950/40 p-3 rounded-xl border border-rose-500/40';
+                if (protocolTitle) protocolTitle.className = 'text-rose-300 font-bold block mb-1';
+            } else if (info.status === 'yellow') {
+                card.style.borderLeftColor = '#f59e0b';
+                if (iconWrap) iconWrap.className = 'w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-base';
+                if (badge) { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30'; badge.textContent = 'Early Warning'; }
+                if (baselineEl) baselineEl.className = 'font-mono font-bold text-amber-400';
+                if (protocolBox) protocolBox.className = 'bg-amber-950/30 p-3 rounded-xl border border-amber-500/30';
+                if (protocolTitle) protocolTitle.className = 'text-amber-300 font-bold block mb-1';
+            } else {
+                card.style.borderLeftColor = '#10b981';
+                if (iconWrap) iconWrap.className = 'w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-base';
+                if (badge) { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'; badge.textContent = 'Optimal Status'; }
+                if (baselineEl) baselineEl.className = 'font-mono font-bold text-emerald-400';
+                if (protocolBox) protocolBox.className = 'bg-emerald-950/30 p-3 rounded-xl border border-emerald-500/30';
+                if (protocolTitle) protocolTitle.className = 'text-emerald-300 font-bold block mb-1';
+            }
+        }
+
+        function toggleAudioFrequency() {
+            if (isAudioPlaying) stopAudioFrequency();
+            else startAudioFrequency();
+        }
+
+        function startAudioFrequency() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const info = organData[currentSelectedPart];
+                const targetFreq = (info.status === 'red') ? info.freq + 111 : info.freq;
+
+                if (oscillator) { try { oscillator.stop(); } catch(e){} }
+
+                oscillator = audioCtx.createOscillator();
+                gainNode = audioCtx.createGain();
+
+                oscillator.type = info.status === 'red' ? 'triangle' : 'sine';
+                oscillator.frequency.setValueAtTime(targetFreq, audioCtx.currentTime);
+
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.1);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+
+                isAudioPlaying = true;
+                const btnText = document.getElementById('audio-btn-text');
+                const audioIcon = document.getElementById('audio-icon');
+                const btn = document.getElementById('audio-play-btn');
+
+                if (btnText && audioIcon && btn) {
+                    btnText.textContent = 'Stop Frequency';
+                    audioIcon.className = 'fa-solid fa-volume-xmark';
+                    btn.className = 'px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-md animate-pulse';
+                }
+                showToast(`Streaming self-aid healing frequency (${targetFreq} Hz) via AstroPatch`, 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Browser audio blocked. Please click again.', 'warning');
+            }
+        }
+
+        function stopAudioFrequency() {
+            if (oscillator && gainNode && audioCtx) {
+                try {
+                    gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+                    setTimeout(() => { oscillator.stop(); oscillator.disconnect(); }, 150);
+                } catch(e) {}
+            }
+            isAudioPlaying = false;
+            const btnText = document.getElementById('audio-btn-text');
+            const audioIcon = document.getElementById('audio-icon');
+            const btn = document.getElementById('audio-play-btn');
+
+            if (btnText && audioIcon && btn) {
+                btnText.textContent = 'Play Frequency';
+                audioIcon.className = 'fa-solid fa-volume-high';
+                btn.className = 'px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-md';
+            }
+        }
+
+        function updateGlobalAlert() {
+            const banner = document.getElementById('global-alert-banner');
+            const box = document.getElementById('alert-box');
+            const iconBg = document.getElementById('alert-icon-bg');
+            const title = document.getElementById('alert-title');
+            const msg = document.getElementById('alert-message');
+
+            if (!banner || !box) return;
+            const statuses = Object.values(organData).map(o => o.status);
+
+            if (organData.eva.status === 'red') {
+                banner.classList.remove('hidden');
+                box.className = 'rounded-2xl p-3.5 border border-rose-500/60 bg-rose-950/80 text-rose-100 flex flex-wrap items-center justify-between gap-3 shadow-lg';
+                if (iconBg) iconBg.className = 'w-10 h-10 rounded-xl bg-rose-500/30 text-rose-300 flex items-center justify-center shrink-0 animate-ping';
+                if (title) title.textContent = 'EVA Emergency: Astronaut Marwa Ahmed detached from ISS!';
+                if (msg) msg.textContent = 'SAFER protocol engaged. Nitrogen thrusters firing. Maintain diaphragmatic breathing.';
+            } else if (statuses.includes('red')) {
+                banner.classList.remove('hidden');
+                box.className = 'rounded-2xl p-3.5 border border-rose-500/50 bg-rose-950/70 text-rose-100 flex flex-wrap items-center justify-between gap-3 shadow-lg';
+                if (iconBg) iconBg.className = 'w-10 h-10 rounded-xl bg-rose-500/30 text-rose-300 flex items-center justify-center shrink-0';
+                if (title) title.textContent = 'Critical Health Warning: Severe baseline deviation!';
+                if (msg) msg.textContent = 'Execute immediate intervention protocol and transmit telemetry to flight surgeons.';
+            } else if (statuses.includes('yellow')) {
+                banner.classList.remove('hidden');
+                box.className = 'rounded-2xl p-3.5 border border-amber-500/50 bg-amber-950/60 text-amber-100 flex flex-wrap items-center justify-between gap-3 shadow-lg';
+                if (iconBg) iconBg.className = 'w-10 h-10 rounded-xl bg-amber-500/30 text-amber-300 flex items-center justify-center shrink-0';
+                if (title) title.textContent = 'Early Warning: Biomarker requires attention';
+                if (msg) msg.textContent = 'Early physiological shift detected. Follow preventative countermeasures.';
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        function focusHighestRiskPart() {
+            const priority = ['red', 'yellow', 'green'];
+            for (let level of priority) {
+                for (let part of ['eva', 'head', 'heart', 'immune', 'bones', 'sensor']) {
+                    if (organData[part].status === level) {
+                        selectBodyPart(part);
+                        const detailCard = document.getElementById('organ-detail-card');
+                        if (detailCard) detailCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    }
+                }
+            }
+        }
+
+        function initChart() {
+            const canvas = document.getElementById('vitalsChart');
+            if (!canvas || typeof Chart === 'undefined') return;
+            const ctx = canvas.getContext('2d');
+            const metric = historicalData.hr;
+
+            vitalsChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: metric.days,
+                    datasets: [
+                        { label: metric.label, data: metric.values, borderColor: metric.color, backgroundColor: 'rgba(6, 182, 212, 0.15)', borderWidth: 2.5, pointBackgroundColor: '#ffffff', pointBorderColor: metric.color, pointRadius: 4, fill: true, tension: 0.35 },
+                        { label: 'Personal Baseline', data: Array(7).fill(metric.baseline), borderColor: '#10b981', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }, grid: { color: 'rgba(30, 41, 59, 0.5)' } },
+                        y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(30, 41, 59, 0.5)' } }
+                    }
+                }
+            });
+        }
+
+        function updateChartMetric() {
+            if (!vitalsChartInstance) return;
+            const metric = document.getElementById('chart-metric-select').value;
+            const dataObj = historicalData[metric];
+            vitalsChartInstance.data.datasets[0].label = dataObj.label;
+            vitalsChartInstance.data.datasets[0].data = dataObj.values;
+            vitalsChartInstance.data.datasets[0].borderColor = dataObj.color;
+            vitalsChartInstance.data.datasets[1].data = Array(7).fill(dataObj.baseline);
+            vitalsChartInstance.update();
+        }
+
+        function toggleTask(checkbox, points) {
+            if (checkbox.checked) {
+                xpTotal += points;
+                showToast(`Great job Marwa! Countermeasure completed (+${points} XP)`, 'success');
+            } else {
+                xpTotal -= points;
+            }
+            document.getElementById('xp-points').textContent = `+${xpTotal.toLocaleString()} XP`;
+            updateVitals();
+        }
+
+        function updateReadinessScore() {
+            const checkboxes = document.querySelectorAll('#routine-list input[type="checkbox"]');
+            let checkedCount = 0;
+            checkboxes.forEach(cb => { if (cb.checked) checkedCount++; });
+            document.getElementById('tasks-counter').textContent = `${checkedCount}/${checkboxes.length}`;
+
+            let baseScore = 60 + (checkedCount * 10);
+            Object.values(organData).forEach(o => {
+                if (o.status === 'yellow') baseScore -= 12;
+                if (o.status === 'red') baseScore -= 25;
+            });
+            baseScore = Math.max(10, Math.min(100, baseScore));
+
+            const scoreEl = document.getElementById('readiness-score');
+            const barEl = document.getElementById('readiness-bar');
+            if (scoreEl) scoreEl.textContent = `${baseScore}%`;
+            if (barEl) barEl.style.width = `${baseScore}%`;
+
+            if (scoreEl && barEl) {
+                if (baseScore >= 80) {
+                    scoreEl.className = 'text-3xl font-extrabold font-mono text-emerald-400';
+                    barEl.className = 'bg-gradient-to-r from-emerald-400 to-cyan-400 h-2.5 rounded-full transition-all duration-500';
+                } else if (baseScore >= 55) {
+                    scoreEl.className = 'text-3xl font-extrabold font-mono text-amber-400';
+                    barEl.className = 'bg-amber-400 h-2.5 rounded-full transition-all duration-500';
+                } else {
+                    scoreEl.className = 'text-3xl font-extrabold font-mono text-rose-400';
+                    barEl.className = 'bg-rose-500 h-2.5 rounded-full transition-all duration-500';
+                }
+            }
+        }
+
+        function triggerEVASeparationEmergency() {
+            setEnvironment('iss');
+            document.getElementById('input-eva').value = 'detached';
+            document.getElementById('input-hr').value = 148;
+            document.getElementById('input-bp').value = 152;
+            document.getElementById('input-mood').value = 'critical';
+            document.getElementById('chart-metric-select').value = 'hr';
+            updateChartMetric();
+            updateVitals();
+            focusHighestRiskPart();
+            open3DSimModal();
+            showToast('EVA Emergency: ISS separation! 3D simulation & SAFER engaged', 'warning');
+        }
+
+        function triggerDemoEmergency() {
+            document.getElementById('input-eva').value = 'tethered';
+            document.getElementById('input-sleep').value = 4.5;
+            document.getElementById('input-onsd').value = 5.9;
+            document.getElementById('input-bp').value = 136;
+            document.getElementById('input-mood').value = 'stressed';
+            document.getElementById('chart-metric-select').value = 'onsd';
+            updateChartMetric();
+            updateVitals();
+            selectBodyPart('head');
+            showToast('Pitch Demo: Acute SANS optic nerve elevation detected', 'warning');
+        }
+
+        function resetToBaseline() {
+            document.getElementById('input-hr').value = 68;
+            document.getElementById('input-bp').value = 120;
+            document.getElementById('input-glucose').value = 95;
+            document.getElementById('input-sleep').value = 7.5;
+            document.getElementById('input-onsd').value = 4.6;
+            document.getElementById('input-mood').value = 'optimal';
+            document.getElementById('input-eva').value = 'tethered';
+            updateVitals();
+            selectBodyPart('head');
+            showToast('All parameters reset to personal baseline', 'success');
+        }
+
+        function sendTelemetryReport() {
+            const delayText = environments[currentEnv].delay;
+            document.getElementById('sync-status').textContent = `Transmitted to Houston (Delay: ${delayText})`;
+            showToast('Biometric telemetry encrypted and transmitted successfully', 'success');
+        }
+
+        function toggleGuideModal() {
+            document.getElementById('guide-modal').classList.toggle('hidden');
+        }
+
+        let toastTimeout;
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast-box');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-text');
+            if (!toast || !icon || !text) return;
+            text.textContent = message;
+            if (type === 'warning') icon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+            else if (type === 'success') icon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            else icon.className = 'fa-solid fa-satellite-dish text-cyan-400 text-base';
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => { toast.classList.add('translate-y-20', 'opacity-0'); }, 3500);
+        }
+
+        // --- THREE.JS 3D ISS EVA SEPARATION SIMULATION ---
+        let scene3D, camera3D, renderer3D, anim3DId;
+        let issGroup, astronautGroup, tetherLine, thrusterJets = [];
+        let simState3D = {
+            initialized: false,
+            isRescuing: false,
+            isDocked: false,
+            distance: 28.0,
+            fuel: 100,
+            o2: 74,
+            camAngleX: 0.45,
+            camAngleY: 0.35,
+            isDragging: false,
+            prevX: 0,
+            prevY: 0
+        };
+
+        function open3DSimModal() {
+            document.getElementById('sim3d-modal').classList.remove('hidden');
+            if (typeof THREE === 'undefined') {
+                showToast('Three.js loading...', 'warning');
+                return;
+            }
+            if (!simState3D.initialized) {
+                initThreeJSScene();
+                simState3D.initialized = true;
+            }
+            resizeThreeJS();
+            reset3DSimulation();
+            if (!anim3DId) animate3DScene();
+        }
+
+        function close3DSimModal() {
+            document.getElementById('sim3d-modal').classList.add('hidden');
+            if (anim3DId) { cancelAnimationFrame(anim3DId); anim3DId = null; }
+        }
+
+        function initThreeJSScene() {
+            const container = document.getElementById('threejs-container');
+            if (!container) return;
+
+            scene3D = new THREE.Scene();
+            camera3D = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+
+            renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer3D.setSize(container.clientWidth, container.clientHeight);
+            renderer3D.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer3D.domElement);
+
+            scene3D.add(new THREE.AmbientLight(0x334155, 1.3));
+            const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            sunLight.position.set(15, 20, 15);
+            scene3D.add(sunLight);
+
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = new Float32Array(700 * 3);
+            for (let i = 0; i < 700 * 3; i++) starPos[i] = (Math.random() - 0.5) * 160;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            scene3D.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xe2e8f0, size: 0.25 })));
+
+            issGroup = new THREE.Group();
+            const trussMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.7, roughness: 0.3 });
+            const moduleMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.4, roughness: 0.4 });
+            const solarMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, emissive: 0x0f172a, metalness: 0.8, roughness: 0.2 });
+
+            issGroup.add(new THREE.Mesh(new THREE.BoxGeometry(10, 0.35, 0.35), trussMat));
+            const coreMod = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 4.2, 16), moduleMat);
+            coreMod.rotation.x = Math.PI / 2;
+            issGroup.add(coreMod);
+
+            [-4.2, -2.6, 2.6, 4.2].forEach(xPos => {
+                const wingTop = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.6, 0.05), solarMat);
+                wingTop.position.set(xPos, 2.1, 0); issGroup.add(wingTop);
+                const wingBot = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.6, 0.05), solarMat);
+                wingBot.position.set(xPos, -2.1, 0); issGroup.add(wingBot);
+            });
+            issGroup.position.set(-4.5, 0, 0);
+            scene3D.add(issGroup);
+
+            astronautGroup = new THREE.Group();
+            const suitMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+            const visorMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.1 });
+            const saferMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.4 });
+
+            astronautGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.95, 0.5), suitMat));
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 16), suitMat);
+            helmet.position.set(0, 0.72, 0.05); astronautGroup.add(helmet);
+            const visor = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), visorMat);
+            visor.position.set(0, 0.72, 0.16); astronautGroup.add(visor);
+            const saferPack = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.85, 0.35), saferMat);
+            saferPack.position.set(0, 0.05, -0.4); astronautGroup.add(saferPack);
+
+            const limbGeo = new THREE.CylinderGeometry(0.13, 0.11, 0.75, 12);
+            const leftArm = new THREE.Mesh(limbGeo, suitMat); leftArm.position.set(-0.55, 0.15, 0.1); leftArm.rotation.z = 0.5; astronautGroup.add(leftArm);
+            const rightArm = new THREE.Mesh(limbGeo, suitMat); rightArm.position.set(0.55, 0.15, 0.1); rightArm.rotation.z = -0.5; astronautGroup.add(rightArm);
+            const leftLeg = new THREE.Mesh(limbGeo, suitMat); leftLeg.position.set(-0.22, -0.82, 0); astronautGroup.add(leftLeg);
+            const rightLeg = new THREE.Mesh(limbGeo, suitMat); rightLeg.position.set(0.22, -0.82, 0); astronautGroup.add(rightLeg);
+
+            const jetMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+            [-0.25, 0.25].forEach(xOffset => {
+                const jet = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.7, 12), jetMat);
+                jet.position.set(xOffset, 0.05, -0.85); jet.rotation.x = -Math.PI / 2; jet.visible = false;
+                astronautGroup.add(jet);
+                thrusterJets.push(jet);
+            });
+            scene3D.add(astronautGroup);
+
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.5, 0, 2.2), new THREE.Vector3(5.5, 1.4, 2.5)]);
+            tetherLine = new THREE.Line(lineGeo, new THREE.LineDashedMaterial({ color: 0xf43f5e, dashSize: 0.4, gapSize: 0.25 }));
+            tetherLine.computeLineDistances();
+            scene3D.add(tetherLine);
+
+            const domEl = renderer3D.domElement;
+            domEl.addEventListener('mousedown', e => { simState3D.isDragging = true; simState3D.prevX = e.clientX; simState3D.prevY = e.clientY; });
+            window.addEventListener('mouseup', () => { simState3D.isDragging = false; });
+            window.addEventListener('mousemove', e => {
+                if (!simState3D.isDragging) return;
+                simState3D.camAngleX -= (e.clientX - simState3D.prevX) * 0.008;
+                simState3D.camAngleY = Math.max(-1.2, Math.min(1.2, simState3D.camAngleY + (e.clientY - simState3D.prevY) * 0.008));
+                simState3D.prevX = e.clientX; simState3D.prevY = e.clientY;
+            });
+            window.addEventListener('resize', resizeThreeJS);
+        }
+
+        function resizeThreeJS() {
+            const container = document.getElementById('threejs-container');
+            if (!renderer3D || !camera3D || !container || container.clientWidth === 0) return;
+            camera3D.aspect = container.clientWidth / container.clientHeight;
+            camera3D.updateProjectionMatrix();
+            renderer3D.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function reset3DSimulation() {
+            simState3D.isRescuing = false;
+            simState3D.isDocked = false;
+            simState3D.distance = 28.0;
+            simState3D.fuel = 100;
+            simState3D.o2 = 74;
+
+            if (astronautGroup) {
+                astronautGroup.position.set(5.5, 1.4, 2.5);
+                astronautGroup.rotation.set(0.4, -0.6, 0.3);
+            }
+            thrusterJets.forEach(j => j.visible = false);
+            if (tetherLine) tetherLine.material.color.setHex(0xf43f5e);
+
+            document.getElementById('sim3d-dist').textContent = '28.0 m';
+            document.getElementById('sim3d-fuel').textContent = '100%';
+            document.getElementById('sim3d-o2').textContent = '74% (High Consumption)';
+            document.getElementById('sim3d-status').textContent = 'Detached - Orbital Drift';
+            document.getElementById('sim3d-guide-banner').className = 'absolute bottom-3 left-3 right-3 z-10 bg-rose-950/85 border border-rose-500/50 rounded-xl px-3.5 py-2 text-xs text-rose-100 flex items-center justify-between gap-2';
+            document.getElementById('sim3d-instruction').textContent = 'Warning: Tether severed! Click "Activate SAFER Rescue" to stabilize and return to ISS.';
+        }
+
+        function activateSAFERThrusters() {
+            if (simState3D.isDocked) return;
+            simState3D.isRescuing = true;
+            thrusterJets.forEach(j => j.visible = true);
+            document.getElementById('sim3d-status').textContent = 'SAFER Active - Returning to ISS';
+            document.getElementById('sim3d-guide-banner').className = 'absolute bottom-3 left-3 right-3 z-10 bg-cyan-950/85 border border-cyan-500/50 rounded-xl px-3.5 py-2 text-xs text-cyan-100 flex items-center justify-between gap-2';
+            document.getElementById('sim3d-instruction').textContent = 'Firing nitrogen SAFER thrusters & stabilizing axis for Quest Airlock docking...';
+            showToast('SAFER nitrogen propulsion pack engaged', 'info');
+        }
+
+        function animate3DScene() {
+            anim3DId = requestAnimationFrame(animate3DScene);
+            if (!renderer3D || !scene3D || !camera3D) return;
+
+            const radius = 16;
+            camera3D.position.x = radius * Math.sin(simState3D.camAngleX) * Math.cos(simState3D.camAngleY);
+            camera3D.position.y = radius * Math.sin(simState3D.camAngleY) + 1.5;
+            camera3D.position.z = radius * Math.cos(simState3D.camAngleX) * Math.cos(simState3D.camAngleY);
+            camera3D.lookAt(0, 0, 1);
+
+            issGroup.rotation.y = Math.sin(Date.now() * 0.0003) * 0.05;
+
+            if (!simState3D.isRescuing && !simState3D.isDocked) {
+                astronautGroup.position.x += 0.006;
+                astronautGroup.position.y += 0.002;
+                astronautGroup.rotation.x += 0.012;
+                astronautGroup.rotation.y += 0.015;
+                simState3D.distance = Math.min(65, simState3D.distance + 0.03);
+                document.getElementById('sim3d-dist').textContent = `${simState3D.distance.toFixed(1)} m`;
+            } else if (simState3D.isRescuing) {
+                const targetX = -3.2, targetY = 0, targetZ = 2.2;
+                astronautGroup.position.x += (targetX - astronautGroup.position.x) * 0.025;
+                astronautGroup.position.y += (targetY - astronautGroup.position.y) * 0.025;
+                astronautGroup.position.z += (targetZ - astronautGroup.position.z) * 0.025;
+
+                astronautGroup.rotation.x *= 0.92;
+                astronautGroup.rotation.y += (-Math.PI / 2 - astronautGroup.rotation.y) * 0.08;
+                astronautGroup.rotation.z *= 0.92;
+
+                thrusterJets.forEach(j => { j.scale.y = 0.8 + Math.random() * 0.5; });
+                simState3D.fuel = Math.max(42, simState3D.fuel - 0.25);
+                simState3D.distance = Math.max(0, (astronautGroup.position.x - targetX) * 3.2);
+
+                document.getElementById('sim3d-dist').textContent = `${simState3D.distance.toFixed(1)} m`;
+                document.getElementById('sim3d-fuel').textContent = `${Math.round(simState3D.fuel)}%`;
+
+                if (simState3D.distance <= 0.4) {
+                    simState3D.isRescuing = false;
+                    simState3D.isDocked = true;
+                    thrusterJets.forEach(j => j.visible = false);
+                    tetherLine.material.color.setHex(0x10b981);
+
+                    document.getElementById('sim3d-dist').textContent = '0.0 m (Docked)';
+                    document.getElementById('sim3d-o2').textContent = '71% (Stable)';
+                    document.getElementById('sim3d-status').textContent = 'Tether Secured Successfully';
+                    document.getElementById('sim3d-guide-banner').className = 'absolute bottom-3 left-3 right-3 z-10 bg-emerald-950/90 border border-emerald-500/50 rounded-xl px-3.5 py-2 text-xs text-emerald-100 flex items-center justify-between gap-2';
+                    document.getElementById('sim3d-instruction').textContent = 'Rescue Success! Astronaut Marwa Ahmed returned to ISS structure and secured tether.';
+
+                    document.getElementById('input-eva').value = 'tethered';
+                    document.getElementById('input-hr').value = 78;
+                    document.getElementById('input-bp').value = 124;
+                    document.getElementById('input-mood').value = 'optimal';
+                    updateVitals();
+                    showToast('ISS tether re-secured and vitals stabilized!', 'success');
+                }
+            }
+
+            if (tetherLine) {
+                const pos = tetherLine.geometry.attributes.position.array;
+                pos[0] = issGroup.position.x + 1.2; pos[1] = issGroup.position.y; pos[2] = issGroup.position.z + 2.2;
+                pos[3] = astronautGroup.position.x; pos[4] = astronautGroup.position.y; pos[5] = astronautGroup.position.z;
+                tetherLine.geometry.attributes.position.needsUpdate = true;
+                tetherLine.computeLineDistances();
+            }
+
+            renderer3D.render(scene3D, camera3D);
+        }
+    </script>
+</body>
+</html>
